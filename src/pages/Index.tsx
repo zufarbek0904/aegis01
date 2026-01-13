@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { ChatList } from '@/components/messenger/ChatList';
 import { ChatView } from '@/components/messenger/ChatView';
 import { EmptyState } from '@/components/messenger/EmptyState';
+import { SettingsPanel } from '@/components/messenger/SettingsPanel';
 import { mockChats, mockMessages } from '@/data/mockData';
 import { Chat, Message } from '@/types/messenger';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -11,6 +12,7 @@ const Index = () => {
   const [chats, setChats] = useState<Chat[]>(mockChats);
   const [messages, setMessages] = useState<Record<string, Message[]>>(mockMessages);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const isMobile = useIsMobile();
 
   const activeChat = chats.find(c => c.id === activeChatId);
@@ -91,6 +93,8 @@ const Index = () => {
   if (isMobile) {
     return (
       <div className="h-screen w-full overflow-hidden">
+        <SettingsPanel isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+        
         <AnimatePresence mode="wait">
           {activeChatId && activeChat ? (
             <motion.div
@@ -122,6 +126,7 @@ const Index = () => {
                 chats={chats}
                 activeChatId={activeChatId}
                 onSelectChat={handleSelectChat}
+                onOpenSettings={() => setIsSettingsOpen(true)}
               />
             </motion.div>
           )}
@@ -133,12 +138,15 @@ const Index = () => {
   // Desktop: side by side
   return (
     <div className="h-screen w-full flex overflow-hidden">
+      <SettingsPanel isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      
       {/* Chat List Sidebar */}
       <div className="w-[380px] border-r border-border flex-shrink-0">
         <ChatList
           chats={chats}
           activeChatId={activeChatId}
           onSelectChat={handleSelectChat}
+          onOpenSettings={() => setIsSettingsOpen(true)}
         />
       </div>
 

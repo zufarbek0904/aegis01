@@ -9,9 +9,10 @@ interface ChatListProps {
   chats: Chat[];
   activeChatId: string | null;
   onSelectChat: (chatId: string) => void;
+  onOpenSettings?: () => void;
 }
 
-export function ChatList({ chats, activeChatId, onSelectChat }: ChatListProps) {
+export function ChatList({ chats, activeChatId, onSelectChat, onOpenSettings }: ChatListProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredChats = chats.filter(chat =>
@@ -26,13 +27,13 @@ export function ChatList({ chats, activeChatId, onSelectChat }: ChatListProps) {
       {/* Header */}
       <div className="p-4 flex items-center justify-between border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <button className="action-button">
+          <button className="action-button" onClick={onOpenSettings}>
             <Menu className="w-5 h-5" />
           </button>
           <h1 className="text-xl font-bold text-gradient">Messenger</h1>
         </div>
         <div className="flex items-center gap-1">
-          <button className="action-button">
+          <button className="action-button" onClick={onOpenSettings}>
             <Settings className="w-5 h-5" />
           </button>
           <button className="action-button">
