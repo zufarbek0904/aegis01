@@ -68,16 +68,29 @@ export function useMessages(chatId: string | null) {
     if (!user || !chatId) return null;
 
     if (options?.scheduledFor) {
+      const messageType = (options.type || 'text') as 'text' | 'photo' | 'video' | 'voice' | 'video_message' | 'file' | 'music' | 'location';
       const { data } = await supabase.from('scheduled_messages').insert({
-        chat_id: chatId, sender_id: user.id, content, type: options.type || 'text',
-        media_url: options.mediaUrl, scheduled_for: options.scheduledFor.toISOString(),
+        chat_id: chatId,
+        sender_id: user.id,
+        content,
+        type: messageType,
+        media_url: options.mediaUrl || null,
+        scheduled_for: options.scheduledFor.toISOString(),
       }).select().single();
       return data;
     }
 
+    const messageType = (options?.type || 'text') as 'text' | 'photo' | 'video' | 'voice' | 'video_message' | 'file' | 'music' | 'location';
+    const messageStatus = 'sent' as 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+    
     const { data } = await supabase.from('messages').insert({
-      chat_id: chatId, sender_id: user.id, content, type: options?.type || 'text',
-      media_url: options?.mediaUrl, is_one_time: options?.isOneTime, status: 'sent',
+      chat_id: chatId,
+      sender_id: user.id,
+      content,
+      type: messageType,
+      media_url: options?.mediaUrl || null,
+      is_one_time: options?.isOneTime || false,
+      status: messageStatus,
     }).select().single();
 
     return data;

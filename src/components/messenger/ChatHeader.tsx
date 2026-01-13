@@ -1,11 +1,10 @@
 import { Chat, User, PresenceStatus } from '@/types/messenger';
 import { Avatar } from './Avatar';
 import { TypingIndicator } from './TypingIndicator';
+import { CallButtons } from '@/components/calls/CallButtons';
 import { cn } from '@/lib/utils';
 import { 
   ArrowLeft, 
-  Phone, 
-  Video, 
   MoreVertical, 
   Search,
   Users
@@ -87,12 +86,7 @@ export function ChatHeader({ chat, onBack, isMobile = false }: ChatHeaderProps) 
         <button className="action-button">
           <Search className="w-5 h-5" />
         </button>
-        <button className="action-button">
-          <Phone className="w-5 h-5" />
-        </button>
-        <button className="action-button">
-          <Video className="w-5 h-5" />
-        </button>
+        <CallButtons chatId={chat.id} />
         <button className="action-button">
           <MoreVertical className="w-5 h-5" />
         </button>
