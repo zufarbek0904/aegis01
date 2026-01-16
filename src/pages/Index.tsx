@@ -1,99 +1,138 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { ChatList } from '@/components/messenger/ChatList';
 import { ChatView } from '@/components/messenger/ChatView';
 import { EmptyState } from '@/components/messenger/EmptyState';
 import { SettingsPanel } from '@/components/messenger/SettingsPanel';
-import { mockChats, mockMessages } from '@/data/mockData';
+import { NewChatDialog } from '@/components/messenger/NewChatDialog';
+import { NewGroupDialog } from '@/components/messenger/NewGroupDialog';
 import { Chat, Message } from '@/types/messenger';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useChats } from '@/hooks/useChats';
+import { useMessages } from '@/hooks/useMessages';
+import { useAuth } from '@/hooks/useAuth';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Navigate } from 'react-router-dom';
 
 const Index = () => {
-  const [chats, setChats] = useState<Chat[]>(mockChats);
-  const [messages, setMessages] = useState<Record<string, Message[]>>(mockMessages);
+  const { user, loading: authLoading } = useAuth();
+  const { chats: supabaseChats, loading: chatsLoading, fetchChats, markAsRead } = useChats();
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+  const [isNewGroupOpen, setIsNewGroupOpen] = useState(false);
   const isMobile = useIsMobile();
 
+  const { messages: supabaseMessages, sendMessage, loading: messagesLoading } = useMessages(activeChatId || undefined);
+
+  // Convert Supabase chats to app Chat format
+  const chats: Chat[] = supabaseChats.map(chat => {
+    const otherMember = chat.members.find((m: any) => m.user_id !== user?.id);
+    const displayName = chat.type === 'private' && otherMember?.profile
+      ? (otherMember.profile.display_name || otherMember.profile.username || 'Пользователь')
+      : (chat.name || 'Группа');
+
+    const avatarUrl = chat.type === 'private' && otherMember?.profile
+      ? otherMember.profile.avatar_url
+      : chat.avatar_url;
+
+    return {
+      id: chat.id,
+      name: displayName,
+      avatar: avatarUrl || '',
+      isGroup: chat.type !== 'private',
+      participants: chat.members.map((m: any) => ({
+        id: m.user_id,
+        name: m.profile?.display_name || m.profile?.username || 'User',
+        avatar: m.profile?.avatar_url || '',
+        presence: m.profile?.presence || 'offline',
+      })),
+      lastMessage: chat.lastMessage ? {
+        id: chat.lastMessage.id,
+        senderId: chat.lastMessage.sender_id,
+        content: chat.lastMessage.content || '',
+        type: chat.lastMessage.type || 'text',
+        status: chat.lastMessage.status || 'sent',
+        timestamp: new Date(chat.lastMessage.created_at),
+        isOutgoing: chat.lastMessage.sender_id === user?.id,
+      } : undefined,
+      unreadCount: chat.unreadCount,
+      isPinned: false,
+      isMuted: false,
+      activity: chat.typingUsers.length > 0 ? {
+        userId: chat.typingUsers[0],
+        type: 'typing' as const,
+      } : undefined,
+    };
+  });
+
+  // Convert Supabase messages to app Message format
+  const messages: Message[] = supabaseMessages.map(msg => ({
+    id: msg.id,
+    senderId: msg.sender_id,
+    content: msg.content || '',
+    type: (msg.type as Message['type']) || 'text',
+    status: (msg.status as Message['status']) || 'sent',
+    timestamp: new Date(msg.created_at),
+    isOutgoing: msg.sender_id === user?.id,
+    mediaUrl: msg.media_url || undefined,
+    duration: msg.media_duration || undefined,
+    isOneTime: msg.is_one_time,
+  }));
+
   const activeChat = chats.find(c => c.id === activeChatId);
-  const activeMessages = activeChatId ? messages[activeChatId] || [] : [];
 
   const handleSelectChat = useCallback((chatId: string) => {
     setActiveChatId(chatId);
-    
-    // Mark as read
-    setChats(prev => prev.map(chat => 
-      chat.id === chatId ? { ...chat, unreadCount: 0 } : chat
-    ));
-  }, []);
+    markAsRead(chatId);
+  }, [markAsRead]);
 
   const handleBack = useCallback(() => {
     setActiveChatId(null);
   }, []);
 
-  const handleSendMessage = useCallback((content: string, options?: { isOneTime?: boolean }) => {
+  const handleSendMessage = useCallback(async (content: string, options?: { isOneTime?: boolean }) => {
     if (!activeChatId) return;
+    await sendMessage(content, { type: 'text', isOneTime: options?.isOneTime });
+  }, [activeChatId, sendMessage]);
 
-    const newMessage: Message = {
-      id: `msg_${Date.now()}`,
-      senderId: 'me',
-      content,
-      type: 'text',
-      status: 'sending',
-      timestamp: new Date(),
-      isOutgoing: true,
-      isOneTime: options?.isOneTime,
-    };
+  const handleChatCreated = useCallback((chatId: string) => {
+    fetchChats();
+    setActiveChatId(chatId);
+  }, [fetchChats]);
 
-    // Add message
-    setMessages(prev => ({
-      ...prev,
-      [activeChatId]: [...(prev[activeChatId] || []), newMessage],
-    }));
+  // Redirect to auth if not logged in
+  if (!authLoading && !user) {
+    return <Navigate to="/auth" replace />;
+  }
 
-    // Update chat last message
-    setChats(prev => prev.map(chat => 
-      chat.id === activeChatId 
-        ? { ...chat, lastMessage: newMessage }
-        : chat
-    ));
-
-    // Simulate sending
-    setTimeout(() => {
-      setMessages(prev => ({
-        ...prev,
-        [activeChatId]: prev[activeChatId].map(msg => 
-          msg.id === newMessage.id ? { ...msg, status: 'sent' as const } : msg
-        ),
-      }));
-    }, 500);
-
-    // Simulate delivery
-    setTimeout(() => {
-      setMessages(prev => ({
-        ...prev,
-        [activeChatId]: prev[activeChatId].map(msg => 
-          msg.id === newMessage.id ? { ...msg, status: 'delivered' as const } : msg
-        ),
-      }));
-    }, 1500);
-
-    // Simulate read
-    setTimeout(() => {
-      setMessages(prev => ({
-        ...prev,
-        [activeChatId]: prev[activeChatId].map(msg => 
-          msg.id === newMessage.id ? { ...msg, status: 'read' as const } : msg
-        ),
-      }));
-    }, 3000);
-  }, [activeChatId]);
+  // Loading state
+  if (authLoading || chatsLoading) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground">Загрузка...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Mobile: show either list or chat
   if (isMobile) {
     return (
       <div className="h-screen w-full overflow-hidden">
         <SettingsPanel isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+        <NewChatDialog
+          open={isNewChatOpen}
+          onOpenChange={setIsNewChatOpen}
+          onChatCreated={handleChatCreated}
+          onCreateGroup={() => setIsNewGroupOpen(true)}
+        />
+        <NewGroupDialog
+          open={isNewGroupOpen}
+          onOpenChange={setIsNewGroupOpen}
+          onGroupCreated={handleChatCreated}
+        />
         
         <AnimatePresence mode="wait">
           {activeChatId && activeChat ? (
@@ -107,7 +146,7 @@ const Index = () => {
             >
               <ChatView
                 chat={activeChat}
-                messages={activeMessages}
+                messages={messages}
                 onBack={handleBack}
                 isMobile={true}
                 onSendMessage={handleSendMessage}
@@ -127,6 +166,7 @@ const Index = () => {
                 activeChatId={activeChatId}
                 onSelectChat={handleSelectChat}
                 onOpenSettings={() => setIsSettingsOpen(true)}
+                onNewChat={() => setIsNewChatOpen(true)}
               />
             </motion.div>
           )}
@@ -139,6 +179,17 @@ const Index = () => {
   return (
     <div className="h-screen w-full flex overflow-hidden">
       <SettingsPanel isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <NewChatDialog
+        open={isNewChatOpen}
+        onOpenChange={setIsNewChatOpen}
+        onChatCreated={handleChatCreated}
+        onCreateGroup={() => setIsNewGroupOpen(true)}
+      />
+      <NewGroupDialog
+        open={isNewGroupOpen}
+        onOpenChange={setIsNewGroupOpen}
+        onGroupCreated={handleChatCreated}
+      />
       
       {/* Chat List Sidebar */}
       <div className="w-[380px] border-r border-border flex-shrink-0">
@@ -147,6 +198,7 @@ const Index = () => {
           activeChatId={activeChatId}
           onSelectChat={handleSelectChat}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          onNewChat={() => setIsNewChatOpen(true)}
         />
       </div>
 
@@ -164,7 +216,7 @@ const Index = () => {
             >
               <ChatView
                 chat={activeChat}
-                messages={activeMessages}
+                messages={messages}
                 onSendMessage={handleSendMessage}
               />
             </motion.div>

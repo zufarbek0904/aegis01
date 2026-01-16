@@ -7,12 +7,13 @@ interface AvatarProps {
   name: string;
   src?: string;
   presence?: PresenceStatus;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   showPresence?: boolean;
   className?: string;
 }
 
 const sizeMap = {
+  xs: 'w-6 h-6 text-[10px]',
   sm: 'w-8 h-8 text-xs',
   md: 'w-10 h-10 text-sm',
   lg: 'w-12 h-12 text-base',
@@ -20,6 +21,7 @@ const sizeMap = {
 };
 
 const presenceSizeMap = {
+  xs: 'sm' as const,
   sm: 'sm' as const,
   md: 'sm' as const,
   lg: 'md' as const,
