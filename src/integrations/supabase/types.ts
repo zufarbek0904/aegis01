@@ -14,6 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_permissions: {
+        Row: {
+          allowed: boolean | null
+          created_at: string | null
+          id: string
+          permission: string
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Insert: {
+          allowed?: boolean | null
+          created_at?: string | null
+          id?: string
+          permission: string
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Update: {
+          allowed?: boolean | null
+          created_at?: string | null
+          id?: string
+          permission?: string
+          role?: Database["public"]["Enums"]["app_role"]
+        }
+        Relationships: []
+      }
+      audit_logs: {
+        Row: {
+          action: string
+          admin_id: string
+          created_at: string
+          details: Json | null
+          id: string
+          ip_address: string | null
+          target_id: string | null
+          target_type: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          admin_id: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          ip_address?: string | null
+          target_id?: string | null
+          target_type?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          admin_id?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          ip_address?: string | null
+          target_id?: string | null
+          target_type?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       call_participants: {
         Row: {
           answer: Json | null
@@ -166,6 +226,7 @@ export type Database = {
           is_public: boolean | null
           members_can_add_members: boolean | null
           name: string | null
+          pinned_message_id: string | null
           slow_mode_seconds: number | null
           type: Database["public"]["Enums"]["chat_type"]
           updated_at: string | null
@@ -180,6 +241,7 @@ export type Database = {
           is_public?: boolean | null
           members_can_add_members?: boolean | null
           name?: string | null
+          pinned_message_id?: string | null
           slow_mode_seconds?: number | null
           type?: Database["public"]["Enums"]["chat_type"]
           updated_at?: string | null
@@ -194,11 +256,20 @@ export type Database = {
           is_public?: boolean | null
           members_can_add_members?: boolean | null
           name?: string | null
+          pinned_message_id?: string | null
           slow_mode_seconds?: number | null
           type?: Database["public"]["Enums"]["chat_type"]
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "chats_pinned_message_id_fkey"
+            columns: ["pinned_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       contacts: {
         Row: {
@@ -356,16 +427,72 @@ export type Database = {
           },
         ]
       }
+      moderation_flags: {
+        Row: {
+          ai_confidence: number | null
+          created_at: string | null
+          flag_type: string
+          id: string
+          message_id: string | null
+          notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          severity: string | null
+          status: string | null
+          user_id: string | null
+        }
+        Insert: {
+          ai_confidence?: number | null
+          created_at?: string | null
+          flag_type: string
+          id?: string
+          message_id?: string | null
+          notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          severity?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          ai_confidence?: number | null
+          created_at?: string | null
+          flag_type?: string
+          id?: string
+          message_id?: string | null
+          notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          severity?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "moderation_flags_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           allow_calls_from: string | null
           allow_messages_from: string | null
           avatar_url: string | null
+          ban_reason: string | null
+          banned_at: string | null
+          banned_by: string | null
           bio: string | null
           created_at: string | null
           display_name: string | null
           id: string
+          is_banned: boolean | null
+          last_ip: string | null
           last_seen: string | null
+          last_user_agent: string | null
           notifications_enabled: boolean | null
           presence: Database["public"]["Enums"]["presence_status"] | null
           show_last_seen: boolean | null
@@ -379,11 +506,17 @@ export type Database = {
           allow_calls_from?: string | null
           allow_messages_from?: string | null
           avatar_url?: string | null
+          ban_reason?: string | null
+          banned_at?: string | null
+          banned_by?: string | null
           bio?: string | null
           created_at?: string | null
           display_name?: string | null
           id: string
+          is_banned?: boolean | null
+          last_ip?: string | null
           last_seen?: string | null
+          last_user_agent?: string | null
           notifications_enabled?: boolean | null
           presence?: Database["public"]["Enums"]["presence_status"] | null
           show_last_seen?: boolean | null
@@ -397,11 +530,17 @@ export type Database = {
           allow_calls_from?: string | null
           allow_messages_from?: string | null
           avatar_url?: string | null
+          ban_reason?: string | null
+          banned_at?: string | null
+          banned_by?: string | null
           bio?: string | null
           created_at?: string | null
           display_name?: string | null
           id?: string
+          is_banned?: boolean | null
+          last_ip?: string | null
           last_seen?: string | null
+          last_user_agent?: string | null
           notifications_enabled?: boolean | null
           presence?: Database["public"]["Enums"]["presence_status"] | null
           show_last_seen?: boolean | null
@@ -492,6 +631,30 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          assigned_at: string | null
+          assigned_by: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -500,6 +663,18 @@ export type Database = {
       get_or_create_private_chat: {
         Args: { p_other_user_id: string; p_user_id: string }
         Returns: string
+      }
+      get_user_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_admin_access: { Args: { _user_id: string }; Returns: boolean }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
       }
       update_user_presence: {
         Args: {
@@ -510,6 +685,7 @@ export type Database = {
       }
     }
     Enums: {
+      app_role: "super_admin" | "admin" | "moderator" | "support" | "user"
       call_status:
         | "ringing"
         | "connecting"
@@ -658,6 +834,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["super_admin", "admin", "moderator", "support", "user"],
       call_status: [
         "ringing",
         "connecting",
