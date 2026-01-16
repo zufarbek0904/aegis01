@@ -10,9 +10,10 @@ interface ChatListProps {
   activeChatId: string | null;
   onSelectChat: (chatId: string) => void;
   onOpenSettings?: () => void;
+  onNewChat?: () => void;
 }
 
-export function ChatList({ chats, activeChatId, onSelectChat, onOpenSettings }: ChatListProps) {
+export function ChatList({ chats, activeChatId, onSelectChat, onOpenSettings, onNewChat }: ChatListProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredChats = chats.filter(chat =>
@@ -36,7 +37,7 @@ export function ChatList({ chats, activeChatId, onSelectChat, onOpenSettings }: 
           <button className="action-button" onClick={onOpenSettings}>
             <Settings className="w-5 h-5" />
           </button>
-          <button className="action-button">
+          <button className="action-button" onClick={onNewChat}>
             <Edit className="w-5 h-5" />
           </button>
         </div>
