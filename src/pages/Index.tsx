@@ -22,7 +22,7 @@ const Index = () => {
   const [isNewGroupOpen, setIsNewGroupOpen] = useState(false);
   const isMobile = useIsMobile();
 
-  const { messages: supabaseMessages, sendMessage, loading: messagesLoading } = useMessages(activeChatId || undefined);
+  const { messages: supabaseMessages, sendMessage, editMessage, deleteMessage, forwardMessage, loading: messagesLoading } = useMessages(activeChatId || undefined);
 
   // Convert Supabase chats to app Chat format
   const chats: Chat[] = supabaseChats.map(chat => {
@@ -76,7 +76,20 @@ const Index = () => {
     isOutgoing: msg.sender_id === user?.id,
     mediaUrl: msg.media_url || undefined,
     duration: msg.media_duration || undefined,
-    isOneTime: msg.is_one_time,
+    isOneTime: msg.is_one_time || false,
+    isEdited: msg.is_edited || false,
+    editedAt: msg.edited_at ? new Date(msg.edited_at) : undefined,
+    replyTo: msg.replyToMessage ? {
+      id: msg.replyToMessage.id,
+      senderId: msg.replyToMessage.sender_id,
+      senderName: msg.replyToMessage.sender?.display_name || msg.replyToMessage.sender?.username || 'Пользователь',
+      content: msg.replyToMessage.content || '',
+      type: (msg.replyToMessage.type as Message['type']) || 'text',
+    } : undefined,
+    forwardedFrom: msg.forwarded_from_id ? {
+      id: msg.forwarded_from_id,
+      senderName: 'Пользователь',
+    } : undefined,
   }));
 
   const activeChat = chats.find(c => c.id === activeChatId);
@@ -90,10 +103,51 @@ const Index = () => {
     setActiveChatId(null);
   }, []);
 
-  const handleSendMessage = useCallback(async (content: string, options?: { isOneTime?: boolean }) => {
+  const handleSendMessage = useCallback(async (content: string, options?: { 
+    isOneTime?: boolean; 
+    type?: string; 
+    mediaUrl?: string;
+    replyToId?: string;
+  }) => {
     if (!activeChatId) return;
-    await sendMessage(content, { type: 'text', isOneTime: options?.isOneTime });
+    await sendMessage(content, { 
+      type: options?.type || 'text', 
+      isOneTime: options?.isOneTime,
+      mediaUrl: options?.mediaUrl,
+      replyToId: options?.replyToId
+    });
   }, [activeChatId, sendMessage]);
+
+  const handleEditMessage = useCallback(async (messageId: string, newContent: string) => {
+    await editMessage(messageId, newContent);
+  }, [editMessage]);
+
+  const handleDeleteMessage = useCallback(async (messageId: string) => {
+    await deleteMessage(messageId);
+  }, [deleteMessage]);
+
+  const handleForwardMessage = useCallback(async (chatIds: string[], message: Message) => {
+    for (const chatId of chatIds) {
+      await forwardMessage(chatId, {
+        id: message.id,
+        chat_id: activeChatId!,
+        sender_id: message.senderId,
+        content: message.content,
+        type: message.type,
+        status: message.status,
+        media_url: message.mediaUrl || null,
+        media_duration: message.duration || null,
+        is_one_time: message.isOneTime || null,
+        reply_to_id: null,
+        is_edited: message.isEdited || null,
+        is_deleted: false,
+        created_at: message.timestamp.toISOString(),
+        edited_at: null,
+        forwarded_from_id: null,
+        sender: null,
+      });
+    }
+  }, [activeChatId, forwardMessage]);
 
   const handleChatCreated = useCallback((chatId: string) => {
     fetchChats();
@@ -147,9 +201,13 @@ const Index = () => {
               <ChatView
                 chat={activeChat}
                 messages={messages}
+                allChats={chats}
                 onBack={handleBack}
                 isMobile={true}
                 onSendMessage={handleSendMessage}
+                onEditMessage={handleEditMessage}
+                onDeleteMessage={handleDeleteMessage}
+                onForwardMessage={handleForwardMessage}
               />
             </motion.div>
           ) : (
@@ -217,7 +275,11 @@ const Index = () => {
               <ChatView
                 chat={activeChat}
                 messages={messages}
+                allChats={chats}
                 onSendMessage={handleSendMessage}
+                onEditMessage={handleEditMessage}
+                onDeleteMessage={handleDeleteMessage}
+                onForwardMessage={handleForwardMessage}
               />
             </motion.div>
           ) : (

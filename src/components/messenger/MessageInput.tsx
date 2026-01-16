@@ -18,6 +18,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { sendStyles } from '@/data/mockData';
 import { MediaUploadDialog } from './MediaUploadDialog';
+import { ReplyPreview } from './ReplyPreview';
+import { Message } from '@/types/messenger';
 import {
   Popover,
   PopoverContent,
@@ -25,12 +27,26 @@ import {
 } from '@/components/ui/popover';
 
 interface MessageInputProps {
-  onSendMessage: (content: string, options?: { isOneTime?: boolean; scheduledFor?: Date; type?: string; mediaUrl?: string }) => void;
+  onSendMessage: (content: string, options?: { 
+    isOneTime?: boolean; 
+    scheduledFor?: Date; 
+    type?: string; 
+    mediaUrl?: string;
+    replyToId?: string;
+  }) => void;
   onStartTyping?: () => void;
   onStopTyping?: () => void;
+  replyTo?: Message | null;
+  onCancelReply?: () => void;
 }
 
-export function MessageInput({ onSendMessage, onStartTyping, onStopTyping }: MessageInputProps) {
+export function MessageInput({ 
+  onSendMessage, 
+  onStartTyping, 
+  onStopTyping,
+  replyTo,
+  onCancelReply
+}: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -60,6 +76,13 @@ export function MessageInput({ onSendMessage, onStartTyping, onStopTyping }: Mes
     return () => clearInterval(interval);
   }, [isRecording]);
 
+  // Focus input when reply is set
+  useEffect(() => {
+    if (replyTo && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [replyTo]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMessage(e.target.value);
     
@@ -75,10 +98,14 @@ export function MessageInput({ onSendMessage, onStartTyping, onStopTyping }: Mes
 
   const handleSend = () => {
     if (message.trim()) {
-      onSendMessage(message.trim(), { isOneTime });
+      onSendMessage(message.trim(), { 
+        isOneTime,
+        replyToId: replyTo?.id
+      });
       setMessage('');
       setIsOneTime(false);
       onStopTyping?.();
+      onCancelReply?.();
     }
   };
 
@@ -87,6 +114,9 @@ export function MessageInput({ onSendMessage, onStartTyping, onStopTyping }: Mes
       e.preventDefault();
       handleSend();
     }
+    if (e.key === 'Escape' && replyTo) {
+      onCancelReply?.();
+    }
   };
 
   const handleUploadComplete = (files: { url: string; type: string; name: string }[]) => {
@@ -94,10 +124,12 @@ export function MessageInput({ onSendMessage, onStartTyping, onStopTyping }: Mes
       onSendMessage(file.name, { 
         type: file.type, 
         mediaUrl: file.url,
-        isOneTime 
+        isOneTime,
+        replyToId: replyTo?.id
       });
     });
     setShowAttachments(false);
+    onCancelReply?.();
   };
 
   const formatTime = (seconds: number) => {
@@ -125,6 +157,23 @@ export function MessageInput({ onSendMessage, onStartTyping, onStopTyping }: Mes
       />
 
       <div className="input-area p-2 sm:p-3 border-t border-border bg-background">
+        {/* Reply Preview */}
+        <AnimatePresence>
+          {replyTo && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mb-2"
+            >
+              <ReplyPreview
+                message={replyTo}
+                onCancel={onCancelReply!}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Attachment Panel */}
         <AnimatePresence>
           {showAttachments && (
@@ -219,7 +268,7 @@ export function MessageInput({ onSendMessage, onStartTyping, onStopTyping }: Mes
               value={message}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder="Сообщение"
+              placeholder={replyTo ? "Ответить..." : "Сообщение"}
               rows={1}
               className="flex-1 bg-transparent resize-none outline-none text-foreground placeholder:text-muted-foreground py-1 sm:py-1.5 max-h-[100px] text-sm sm:text-base min-w-0"
             />

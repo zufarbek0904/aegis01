@@ -30,10 +30,22 @@ export interface Message {
   status: MessageStatus;
   timestamp: Date;
   isOutgoing: boolean;
-  replyTo?: string;
+  replyTo?: {
+    id: string;
+    senderId: string;
+    senderName: string;
+    content: string;
+    type: MessageType;
+  };
+  forwardedFrom?: {
+    id: string;
+    senderName: string;
+  };
   mediaUrl?: string;
-  duration?: number; // for voice/video
+  duration?: number;
   isOneTime?: boolean;
+  isEdited?: boolean;
+  editedAt?: Date;
   scheduledFor?: Date;
 }
 

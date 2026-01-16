@@ -4,7 +4,9 @@ import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
 import { TypingBubble } from './TypingIndicator';
 import { Avatar } from './Avatar';
-import { useRef, useEffect, useState } from 'react';
+import { ForwardMessageDialog } from './ForwardMessageDialog';
+import { EditMessageDialog } from './EditMessageDialog';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -13,9 +15,18 @@ import { toast } from 'sonner';
 interface ChatViewProps {
   chat: Chat;
   messages: Message[];
+  allChats?: Chat[];
   onBack?: () => void;
   isMobile?: boolean;
-  onSendMessage: (content: string, options?: { isOneTime?: boolean; type?: string; mediaUrl?: string }) => void;
+  onSendMessage: (content: string, options?: { 
+    isOneTime?: boolean; 
+    type?: string; 
+    mediaUrl?: string;
+    replyToId?: string;
+  }) => void;
+  onEditMessage?: (messageId: string, newContent: string) => void;
+  onDeleteMessage?: (messageId: string) => void;
+  onForwardMessage?: (chatIds: string[], message: Message) => void;
 }
 
 function formatDateSeparator(date: Date): string {
@@ -24,9 +35,23 @@ function formatDateSeparator(date: Date): string {
   return format(date, 'd MMMM', { locale: ru });
 }
 
-export function ChatView({ chat, messages, onBack, isMobile = false, onSendMessage }: ChatViewProps) {
+export function ChatView({ 
+  chat, 
+  messages, 
+  allChats = [],
+  onBack, 
+  isMobile = false, 
+  onSendMessage,
+  onEditMessage,
+  onDeleteMessage,
+  onForwardMessage
+}: ChatViewProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [showTyping, setShowTyping] = useState(false);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
+  const [editMessage, setEditMessage] = useState<Message | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -41,6 +66,13 @@ export function ChatView({ chat, messages, onBack, isMobile = false, onSendMessa
     }
   }, [chat.activity]);
 
+  // Clear reply when chat changes
+  useEffect(() => {
+    setReplyTo(null);
+    setForwardMessage(null);
+    setEditMessage(null);
+  }, [chat.id]);
+
   // Group messages by date
   const groupedMessages: { date: Date; messages: Message[] }[] = [];
   messages.forEach(msg => {
@@ -52,32 +84,86 @@ export function ChatView({ chat, messages, onBack, isMobile = false, onSendMessa
     }
   });
 
-  const handleReply = (message: Message) => {
-    toast.info('Ответ на сообщение', { description: message.content?.slice(0, 50) });
-  };
+  const handleReply = useCallback((message: Message) => {
+    setReplyTo(message);
+  }, []);
 
-  const handleForward = (message: Message) => {
-    toast.info('Переслать сообщение');
-  };
+  const handleForward = useCallback((message: Message) => {
+    setForwardMessage(message);
+  }, []);
 
-  const handleDelete = (message: Message) => {
-    toast.info('Сообщение удалено');
-  };
+  const handleDelete = useCallback((message: Message) => {
+    if (onDeleteMessage) {
+      onDeleteMessage(message.id);
+      toast.success('Сообщение удалено');
+    }
+  }, [onDeleteMessage]);
 
-  const handlePin = (message: Message) => {
+  const handlePin = useCallback((message: Message) => {
     toast.info('Сообщение закреплено');
-  };
+  }, []);
 
-  const handleEdit = (message: Message) => {
-    toast.info('Редактировать сообщение');
-  };
+  const handleEdit = useCallback((message: Message) => {
+    if (message.isOutgoing && message.type === 'text') {
+      setEditMessage(message);
+    }
+  }, []);
+
+  const handleSaveEdit = useCallback((messageId: string, newContent: string) => {
+    if (onEditMessage) {
+      onEditMessage(messageId, newContent);
+      toast.success('Сообщение отредактировано');
+    }
+  }, [onEditMessage]);
+
+  const handleForwardSubmit = useCallback((chatIds: string[], message: Message) => {
+    if (onForwardMessage) {
+      onForwardMessage(chatIds, message);
+      toast.success(`Сообщение переслано в ${chatIds.length} чат(ов)`);
+    }
+  }, [onForwardMessage]);
+
+  const handleScrollToMessage = useCallback((messageId: string) => {
+    const element = document.getElementById(`message-${messageId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.classList.add('bg-primary/10');
+      setTimeout(() => element.classList.remove('bg-primary/10'), 2000);
+    }
+  }, []);
+
+  const handleSendMessage = useCallback((content: string, options?: any) => {
+    onSendMessage(content, {
+      ...options,
+      replyToId: replyTo?.id
+    });
+    setReplyTo(null);
+  }, [onSendMessage, replyTo]);
 
   return (
     <div className="h-full w-full flex flex-col bg-background overflow-hidden">
       <ChatHeader chat={chat} onBack={onBack} isMobile={isMobile} />
 
+      {/* Forward Dialog */}
+      <ForwardMessageDialog
+        open={forwardMessage !== null}
+        onOpenChange={(open) => !open && setForwardMessage(null)}
+        message={forwardMessage}
+        chats={allChats.filter(c => c.id !== chat.id)}
+        onForward={handleForwardSubmit}
+      />
+
+      {/* Edit Dialog */}
+      <EditMessageDialog
+        open={editMessage !== null}
+        onOpenChange={(open) => !open && setEditMessage(null)}
+        message={editMessage}
+        onSave={handleSaveEdit}
+      />
+
       {/* Messages Area */}
       <div 
+        ref={messagesContainerRef}
         className="flex-1 overflow-y-auto overflow-x-hidden px-2 sm:px-4 py-4"
         style={{
           backgroundImage: 'radial-gradient(circle at 50% 50%, hsl(var(--secondary) / 0.3) 0%, transparent 70%)',
@@ -110,7 +196,8 @@ export function ChatView({ chat, messages, onBack, isMobile = false, onSendMessa
                 return (
                   <div
                     key={message.id}
-                    className={`flex gap-1.5 sm:gap-2 w-full ${message.isOutgoing ? 'justify-end' : 'justify-start'}`}
+                    id={`message-${message.id}`}
+                    className={`flex gap-1.5 sm:gap-2 w-full transition-colors duration-500 ${message.isOutgoing ? 'justify-end' : 'justify-start'}`}
                   >
                     {chat.isGroup && !message.isOutgoing && (
                       <div className="w-7 sm:w-8 flex-shrink-0">
@@ -132,6 +219,7 @@ export function ChatView({ chat, messages, onBack, isMobile = false, onSendMessa
                       onDelete={handleDelete}
                       onPin={handlePin}
                       onEdit={handleEdit}
+                      onScrollToMessage={handleScrollToMessage}
                     />
                   </div>
                 );
@@ -164,7 +252,11 @@ export function ChatView({ chat, messages, onBack, isMobile = false, onSendMessa
         </div>
       </div>
 
-      <MessageInput onSendMessage={onSendMessage} />
+      <MessageInput 
+        onSendMessage={handleSendMessage}
+        replyTo={replyTo}
+        onCancelReply={() => setReplyTo(null)}
+      />
     </div>
   );
 }
