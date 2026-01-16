@@ -8,13 +8,14 @@ import { useRef, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { toast } from 'sonner';
 
 interface ChatViewProps {
   chat: Chat;
   messages: Message[];
   onBack?: () => void;
   isMobile?: boolean;
-  onSendMessage: (content: string, options?: { isOneTime?: boolean }) => void;
+  onSendMessage: (content: string, options?: { isOneTime?: boolean; type?: string; mediaUrl?: string }) => void;
 }
 
 function formatDateSeparator(date: Date): string {
@@ -51,89 +52,116 @@ export function ChatView({ chat, messages, onBack, isMobile = false, onSendMessa
     }
   });
 
+  const handleReply = (message: Message) => {
+    toast.info('Ответ на сообщение', { description: message.content?.slice(0, 50) });
+  };
+
+  const handleForward = (message: Message) => {
+    toast.info('Переслать сообщение');
+  };
+
+  const handleDelete = (message: Message) => {
+    toast.info('Сообщение удалено');
+  };
+
+  const handlePin = (message: Message) => {
+    toast.info('Сообщение закреплено');
+  };
+
+  const handleEdit = (message: Message) => {
+    toast.info('Редактировать сообщение');
+  };
+
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className="h-full w-full flex flex-col bg-background overflow-hidden">
       <ChatHeader chat={chat} onBack={onBack} isMobile={isMobile} />
 
       {/* Messages Area */}
       <div 
-        className="flex-1 overflow-y-auto px-4 py-4 space-y-4"
+        className="flex-1 overflow-y-auto overflow-x-hidden px-2 sm:px-4 py-4"
         style={{
           backgroundImage: 'radial-gradient(circle at 50% 50%, hsl(var(--secondary) / 0.3) 0%, transparent 70%)',
         }}
       >
-        {groupedMessages.map((group, groupIndex) => (
-          <div key={group.date.toISOString()} className="space-y-3">
-            {/* Date Separator */}
-            <div className="flex justify-center">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="px-4 py-1.5 bg-card/80 backdrop-blur-sm rounded-full text-xs text-muted-foreground"
-              >
-                {formatDateSeparator(group.date)}
-              </motion.div>
-            </div>
-
-            {/* Messages */}
-            {group.messages.map((message, msgIndex) => {
-              const prevMessage = msgIndex > 0 ? group.messages[msgIndex - 1] : null;
-              const showAvatar = !message.isOutgoing && 
-                (!prevMessage || prevMessage.senderId !== message.senderId);
-              
-              const sender = chat.isGroup && !message.isOutgoing
-                ? chat.participants.find(p => p.id === message.senderId)
-                : null;
-
-              return (
-                <div
-                  key={message.id}
-                  className={`flex gap-2 ${message.isOutgoing ? 'justify-end' : 'justify-start'}`}
+        <div className="space-y-3 sm:space-y-4">
+          {groupedMessages.map((group, groupIndex) => (
+            <div key={group.date.toISOString()} className="space-y-2 sm:space-y-3">
+              {/* Date Separator */}
+              <div className="flex justify-center">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="px-3 sm:px-4 py-1 sm:py-1.5 bg-card/80 backdrop-blur-sm rounded-full text-[10px] sm:text-xs text-muted-foreground"
                 >
-                  {chat.isGroup && !message.isOutgoing && (
-                    <div className="w-8 flex-shrink-0">
-                      {showAvatar && sender && (
-                        <Avatar
-                          name={sender.name}
-                          size="sm"
-                          showPresence={false}
-                        />
-                      )}
-                    </div>
-                  )}
-                  <MessageBubble
-                    message={message}
-                    showAvatar={showAvatar}
-                    senderName={showAvatar && sender ? sender.name : undefined}
+                  {formatDateSeparator(group.date)}
+                </motion.div>
+              </div>
+
+              {/* Messages */}
+              {group.messages.map((message, msgIndex) => {
+                const prevMessage = msgIndex > 0 ? group.messages[msgIndex - 1] : null;
+                const showAvatar = !message.isOutgoing && 
+                  (!prevMessage || prevMessage.senderId !== message.senderId);
+                
+                const sender = chat.isGroup && !message.isOutgoing
+                  ? chat.participants.find(p => p.id === message.senderId)
+                  : null;
+
+                return (
+                  <div
+                    key={message.id}
+                    className={`flex gap-1.5 sm:gap-2 w-full ${message.isOutgoing ? 'justify-end' : 'justify-start'}`}
+                  >
+                    {chat.isGroup && !message.isOutgoing && (
+                      <div className="w-7 sm:w-8 flex-shrink-0">
+                        {showAvatar && sender && (
+                          <Avatar
+                            name={sender.name}
+                            size="sm"
+                            showPresence={false}
+                          />
+                        )}
+                      </div>
+                    )}
+                    <MessageBubble
+                      message={message}
+                      showAvatar={showAvatar}
+                      senderName={showAvatar && sender ? sender.name : undefined}
+                      onReply={handleReply}
+                      onForward={handleForward}
+                      onDelete={handleDelete}
+                      onPin={handlePin}
+                      onEdit={handleEdit}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+
+          {/* Typing Indicator */}
+          <AnimatePresence>
+            {showTyping && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="flex gap-1.5 sm:gap-2"
+              >
+                {chat.isGroup && chat.activity && (
+                  <Avatar
+                    name={chat.participants.find(p => p.id === chat.activity?.userId)?.name || ''}
+                    size="sm"
+                    showPresence={false}
                   />
-                </div>
-              );
-            })}
-          </div>
-        ))}
+                )}
+                <TypingBubble />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-        {/* Typing Indicator */}
-        <AnimatePresence>
-          {showTyping && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className="flex gap-2"
-            >
-              {chat.isGroup && chat.activity && (
-                <Avatar
-                  name={chat.participants.find(p => p.id === chat.activity?.userId)?.name || ''}
-                  size="sm"
-                  showPresence={false}
-                />
-              )}
-              <TypingBubble />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div ref={messagesEndRef} />
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
       <MessageInput onSendMessage={onSendMessage} />

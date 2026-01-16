@@ -1,5 +1,7 @@
 import { Message } from '@/types/messenger';
 import { MessageStatus } from './MessageStatus';
+import { MessageContextMenu } from './MessageContextMenu';
+import { MessageReactions } from './MessageReactions';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { Play, Pause, Image, FileText, Music, MapPin, Eye } from 'lucide-react';
@@ -7,34 +9,71 @@ import { useState } from 'react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
+interface MessageReaction {
+  emoji: string;
+  count: number;
+  reacted: boolean;
+}
+
 interface MessageBubbleProps {
   message: Message;
   showAvatar?: boolean;
   senderName?: string;
+  onReply?: (message: Message) => void;
+  onForward?: (message: Message) => void;
+  onDelete?: (message: Message) => void;
+  onPin?: (message: Message) => void;
+  onEdit?: (message: Message) => void;
 }
 
-export function MessageBubble({ message, showAvatar, senderName }: MessageBubbleProps) {
+export function MessageBubble({ 
+  message, 
+  showAvatar, 
+  senderName,
+  onReply,
+  onForward,
+  onDelete,
+  onPin,
+  onEdit
+}: MessageBubbleProps) {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [reactions, setReactions] = useState<MessageReaction[]>([]);
 
   const formattedTime = format(message.timestamp, 'HH:mm', { locale: ru });
 
   const bubbleClass = message.isOutgoing 
-    ? 'message-bubble-outgoing ml-auto' 
+    ? 'message-bubble-outgoing' 
     : 'message-bubble-incoming';
 
-  const animationClass = message.isOutgoing 
-    ? 'animate-message-out' 
-    : 'animate-message-in';
+  const handleReaction = (emoji: string) => {
+    setReactions(prev => {
+      const existing = prev.find(r => r.emoji === emoji);
+      if (existing) {
+        if (existing.reacted) {
+          if (existing.count === 1) {
+            return prev.filter(r => r.emoji !== emoji);
+          }
+          return prev.map(r => 
+            r.emoji === emoji ? { ...r, count: r.count - 1, reacted: false } : r
+          );
+        }
+        return prev.map(r => 
+          r.emoji === emoji ? { ...r, count: r.count + 1, reacted: true } : r
+        );
+      }
+      return [...prev, { emoji, count: 1, reacted: true }];
+    });
+  };
 
   const renderContent = () => {
     switch (message.type) {
       case 'voice':
         return (
-          <div className="flex items-center gap-3 min-w-[200px]">
+          <div className="flex items-center gap-3 min-w-[180px]">
             <button
               onClick={() => setIsPlaying(!isPlaying)}
               className={cn(
-                'w-10 h-10 rounded-full flex items-center justify-center transition-colors',
+                'w-10 h-10 rounded-full flex items-center justify-center transition-colors flex-shrink-0',
                 message.isOutgoing 
                   ? 'bg-white/20 hover:bg-white/30' 
                   : 'bg-primary/20 hover:bg-primary/30'
@@ -46,26 +85,26 @@ export function MessageBubble({ message, showAvatar, senderName }: MessageBubble
                 <Play className="w-5 h-5 ml-0.5" />
               )}
             </button>
-            <div className="flex-1">
-              <div className="flex items-center gap-1 h-8">
-                {[...Array(20)].map((_, i) => (
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-0.5 h-8">
+                {[...Array(16)].map((_, i) => (
                   <motion.div
                     key={i}
                     className={cn(
-                      'w-1 rounded-full',
+                      'w-0.5 rounded-full flex-shrink-0',
                       message.isOutgoing ? 'bg-white/60' : 'bg-primary/60'
                     )}
                     animate={{
                       height: isPlaying 
-                        ? [8, Math.random() * 24 + 8, 8] 
-                        : Math.random() * 16 + 8,
+                        ? [8, Math.random() * 20 + 8, 8] 
+                        : Math.random() * 14 + 6,
                     }}
                     transition={{
                       duration: 0.3,
                       repeat: isPlaying ? Infinity : 0,
                       delay: i * 0.05,
                     }}
-                    style={{ height: Math.random() * 16 + 8 }}
+                    style={{ height: Math.random() * 14 + 6 }}
                   />
                 ))}
               </div>
@@ -78,9 +117,9 @@ export function MessageBubble({ message, showAvatar, senderName }: MessageBubble
 
       case 'video_message':
         return (
-          <div className="relative w-48 h-48 rounded-full overflow-hidden border-4 border-primary">
+          <div className="relative w-40 h-40 rounded-full overflow-hidden border-4 border-primary">
             <div className="w-full h-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center">
-              <Play className="w-12 h-12 text-white" />
+              <Play className="w-10 h-10 text-white" />
             </div>
             {message.isOneTime && (
               <div className="absolute top-2 right-2 bg-black/50 rounded-full p-1">
@@ -92,7 +131,7 @@ export function MessageBubble({ message, showAvatar, senderName }: MessageBubble
 
       case 'photo':
         return (
-          <div className="relative max-w-xs rounded-lg overflow-hidden">
+          <div className="relative max-w-[240px] rounded-lg overflow-hidden">
             {message.mediaUrl ? (
               <img 
                 src={message.mediaUrl} 
@@ -100,8 +139,8 @@ export function MessageBubble({ message, showAvatar, senderName }: MessageBubble
                 className="w-full h-auto"
               />
             ) : (
-              <div className="w-64 h-48 bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center">
-                <Image className="w-12 h-12 text-muted-foreground" />
+              <div className="w-full aspect-[4/3] bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center">
+                <Image className="w-10 h-10 text-muted-foreground" />
               </div>
             )}
             {message.isOneTime && (
@@ -109,7 +148,7 @@ export function MessageBubble({ message, showAvatar, senderName }: MessageBubble
                 <Eye className="w-4 h-4" />
               </div>
             )}
-            <div className="absolute bottom-2 right-2 bg-black/50 rounded-full px-2 py-0.5 text-xs flex items-center gap-1">
+            <div className="absolute bottom-2 right-2 bg-black/50 rounded-full px-2 py-0.5 text-xs flex items-center gap-1 text-white">
               {formattedTime}
               {message.isOutgoing && <MessageStatus status={message.status} className="w-3 h-3" />}
             </div>
@@ -118,15 +157,15 @@ export function MessageBubble({ message, showAvatar, senderName }: MessageBubble
 
       case 'file':
         return (
-          <div className="flex items-center gap-3 min-w-[200px]">
+          <div className="flex items-center gap-3 min-w-[180px]">
             <div className={cn(
-              'w-10 h-10 rounded-lg flex items-center justify-center',
+              'w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0',
               message.isOutgoing ? 'bg-white/20' : 'bg-primary/20'
             )}>
               <FileText className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium truncate">{message.content || 'Документ.pdf'}</p>
+              <p className="font-medium truncate text-sm">{message.content || 'Документ.pdf'}</p>
               <p className="text-xs opacity-70">2.4 MB</p>
             </div>
           </div>
@@ -134,48 +173,48 @@ export function MessageBubble({ message, showAvatar, senderName }: MessageBubble
 
       case 'music':
         return (
-          <div className="flex items-center gap-3 min-w-[240px]">
+          <div className="flex items-center gap-3 min-w-[200px]">
             <button
               onClick={() => setIsPlaying(!isPlaying)}
               className={cn(
-                'w-12 h-12 rounded-full flex items-center justify-center transition-colors',
+                'w-10 h-10 rounded-full flex items-center justify-center transition-colors flex-shrink-0',
                 message.isOutgoing 
                   ? 'bg-white/20 hover:bg-white/30' 
                   : 'bg-primary/20 hover:bg-primary/30'
               )}
             >
               {isPlaying ? (
-                <Pause className="w-6 h-6" />
+                <Pause className="w-5 h-5" />
               ) : (
-                <Play className="w-6 h-6 ml-0.5" />
+                <Play className="w-5 h-5 ml-0.5" />
               )}
             </button>
-            <div className="flex-1">
-              <p className="font-medium">Название трека</p>
-              <p className="text-xs opacity-70">Исполнитель</p>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm truncate">Название трека</p>
+              <p className="text-xs opacity-70 truncate">Исполнитель</p>
             </div>
-            <Music className="w-5 h-5 opacity-50" />
+            <Music className="w-5 h-5 opacity-50 flex-shrink-0" />
           </div>
         );
 
       case 'location':
         return (
-          <div className="w-64 h-32 rounded-lg bg-gradient-to-br from-emerald-500/30 to-cyan-500/30 flex items-center justify-center">
+          <div className="w-52 h-28 rounded-lg bg-gradient-to-br from-emerald-500/30 to-cyan-500/30 flex items-center justify-center">
             <MapPin className="w-8 h-8" />
           </div>
         );
 
       default:
-        return <p className="whitespace-pre-wrap break-words">{message.content}</p>;
+        return <p className="whitespace-pre-wrap break-words text-sm">{message.content}</p>;
     }
   };
 
-  return (
+  const bubbleContent = (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       className={cn(
-        'max-w-[75%] flex flex-col gap-1',
+        'max-w-[85%] sm:max-w-[75%] flex flex-col gap-1',
         message.isOutgoing ? 'items-end' : 'items-start'
       )}
     >
@@ -184,14 +223,15 @@ export function MessageBubble({ message, showAvatar, senderName }: MessageBubble
       )}
       <div
         className={cn(
-          'rounded-message px-4 py-2.5',
+          'rounded-2xl px-3 py-2',
           bubbleClass,
-          message.type === 'photo' && 'p-0 overflow-hidden'
+          message.type === 'photo' && 'p-0 overflow-hidden',
+          message.type === 'video_message' && 'p-0 bg-transparent'
         )}
       >
         {renderContent()}
         
-        {message.type !== 'photo' && (
+        {message.type !== 'photo' && message.type !== 'video_message' && (
           <div className={cn(
             'flex items-center gap-1.5 mt-1',
             message.isOutgoing ? 'justify-end' : 'justify-start'
@@ -203,6 +243,27 @@ export function MessageBubble({ message, showAvatar, senderName }: MessageBubble
           </div>
         )}
       </div>
+
+      {/* Reactions */}
+      <MessageReactions
+        reactions={reactions}
+        onReact={handleReaction}
+        isOutgoing={message.isOutgoing}
+      />
     </motion.div>
+  );
+
+  return (
+    <MessageContextMenu
+      message={message}
+      onReply={onReply}
+      onForward={onForward}
+      onDelete={onDelete}
+      onPin={onPin}
+      onEdit={onEdit}
+      onReaction={() => handleReaction('👍')}
+    >
+      {bubbleContent}
+    </MessageContextMenu>
   );
 }
