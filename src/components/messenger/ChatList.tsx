@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Search, Menu, Settings, Edit } from 'lucide-react';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useLanguage } from '@/hooks/useLanguage';
 
 interface ChatListProps {
   chats: Chat[];
@@ -14,6 +15,7 @@ interface ChatListProps {
 }
 
 export function ChatList({ chats, activeChatId, onSelectChat, onOpenSettings, onNewChat }: ChatListProps) {
+  const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredChats = chats.filter(chat =>
@@ -48,7 +50,7 @@ export function ChatList({ chats, activeChatId, onSelectChat, onOpenSettings, on
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Поиск"
+            placeholder={t('chat.search')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10 bg-sidebar-accent border-none focus-visible:ring-1 focus-visible:ring-primary"
@@ -100,7 +102,7 @@ export function ChatList({ chats, activeChatId, onSelectChat, onOpenSettings, on
 
         {filteredChats.length === 0 && (
           <div className="flex items-center justify-center h-40 text-muted-foreground">
-            <p>Чаты не найдены</p>
+            <p>{t('chat.chatsNotFound')}</p>
           </div>
         )}
       </div>
