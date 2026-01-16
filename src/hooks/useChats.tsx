@@ -21,14 +21,22 @@ export function useChats() {
   const [loading, setLoading] = useState(true);
 
   const fetchChats = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
+    setLoading(true);
+    
     const { data: memberships } = await supabase
       .from('chat_members')
       .select('*, chat:chats(*)')
       .eq('user_id', user.id);
 
-    if (!memberships) return;
+    if (!memberships) {
+      setLoading(false);
+      return;
+    }
 
     const chatDetails = await Promise.all(
       memberships.map(async (membership: any) => {

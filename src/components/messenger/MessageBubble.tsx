@@ -2,9 +2,10 @@ import { Message } from '@/types/messenger';
 import { MessageStatus } from './MessageStatus';
 import { MessageContextMenu } from './MessageContextMenu';
 import { MessageReactions } from './MessageReactions';
+import { QuotedMessage } from './QuotedMessage';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
-import { Play, Pause, Image, FileText, Music, MapPin, Eye } from 'lucide-react';
+import { Play, Pause, Image, FileText, Music, MapPin, Eye, Forward, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -24,6 +25,7 @@ interface MessageBubbleProps {
   onDelete?: (message: Message) => void;
   onPin?: (message: Message) => void;
   onEdit?: (message: Message) => void;
+  onScrollToMessage?: (messageId: string) => void;
 }
 
 export function MessageBubble({ 
@@ -34,7 +36,8 @@ export function MessageBubble({
   onForward,
   onDelete,
   onPin,
-  onEdit
+  onEdit,
+  onScrollToMessage
 }: MessageBubbleProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
@@ -218,9 +221,21 @@ export function MessageBubble({
         message.isOutgoing ? 'items-end' : 'items-start'
       )}
     >
+      {/* Forwarded indicator */}
+      {message.forwardedFrom && (
+        <div className={cn(
+          'flex items-center gap-1 text-xs px-3',
+          message.isOutgoing ? 'text-white/60' : 'text-muted-foreground'
+        )}>
+          <Forward className="w-3 h-3" />
+          <span>Переслано от {message.forwardedFrom.senderName}</span>
+        </div>
+      )}
+
       {senderName && !message.isOutgoing && (
         <span className="text-xs text-primary font-medium px-3">{senderName}</span>
       )}
+      
       <div
         className={cn(
           'rounded-2xl px-3 py-2',
@@ -229,6 +244,17 @@ export function MessageBubble({
           message.type === 'video_message' && 'p-0 bg-transparent'
         )}
       >
+        {/* Reply preview */}
+        {message.replyTo && (
+          <QuotedMessage
+            senderName={message.replyTo.senderName}
+            content={message.replyTo.content}
+            type={message.replyTo.type}
+            isOutgoing={message.isOutgoing}
+            onClick={() => onScrollToMessage?.(message.replyTo!.id)}
+          />
+        )}
+
         {renderContent()}
         
         {message.type !== 'photo' && message.type !== 'video_message' && (
@@ -236,6 +262,12 @@ export function MessageBubble({
             'flex items-center gap-1.5 mt-1',
             message.isOutgoing ? 'justify-end' : 'justify-start'
           )}>
+            {message.isEdited && (
+              <span className="text-[10px] opacity-50 flex items-center gap-0.5">
+                <Pencil className="w-2.5 h-2.5" />
+                ред.
+              </span>
+            )}
             <span className="text-[10px] opacity-60">{formattedTime}</span>
             {message.isOutgoing && (
               <MessageStatus status={message.status} className="w-3.5 h-3.5" />

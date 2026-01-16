@@ -16,7 +16,10 @@ export interface MessageWithSender {
   is_edited: boolean | null;
   is_deleted: boolean | null;
   created_at: string;
+  edited_at: string | null;
+  forwarded_from_id: string | null;
   sender: any;
+  replyToMessage?: MessageWithSender | null;
 }
 
 export function useMessages(chatId: string | null) {
@@ -34,12 +37,23 @@ export function useMessages(chatId: string | null) {
       .eq('is_deleted', false)
       .order('created_at', { ascending: true });
 
-    if (!data) return;
+    if (!data) { setLoading(false); return; }
 
     const messagesWithSenders = await Promise.all(
       data.map(async (msg) => {
         const { data: sender } = await supabase.from('profiles').select('*').eq('id', msg.sender_id).single();
-        return { ...msg, sender };
+        
+        // Fetch reply message if exists
+        let replyToMessage = null;
+        if (msg.reply_to_id) {
+          const { data: replyMsg } = await supabase.from('messages').select('*').eq('id', msg.reply_to_id).single();
+          if (replyMsg) {
+            const { data: replySender } = await supabase.from('profiles').select('*').eq('id', replyMsg.sender_id).single();
+            replyToMessage = { ...replyMsg, sender: replySender };
+          }
+        }
+        
+        return { ...msg, sender, replyToMessage };
       })
     );
 
@@ -64,7 +78,14 @@ export function useMessages(chatId: string | null) {
     return () => { supabase.removeChannel(channel); };
   }, [chatId]);
 
-  const sendMessage = async (content: string, options?: { type?: string; mediaUrl?: string; isOneTime?: boolean; scheduledFor?: Date }) => {
+  const sendMessage = async (content: string, options?: { 
+    type?: string; 
+    mediaUrl?: string; 
+    isOneTime?: boolean; 
+    scheduledFor?: Date;
+    replyToId?: string;
+    forwardedFromId?: string;
+  }) => {
     if (!user || !chatId) return null;
 
     if (options?.scheduledFor) {
@@ -91,6 +112,66 @@ export function useMessages(chatId: string | null) {
       media_url: options?.mediaUrl || null,
       is_one_time: options?.isOneTime || false,
       status: messageStatus,
+      reply_to_id: options?.replyToId || null,
+      forwarded_from_id: options?.forwardedFromId || null,
+    }).select().single();
+
+    return data;
+  };
+
+  const editMessage = async (messageId: string, newContent: string) => {
+    if (!user) return null;
+    
+    const { data } = await supabase
+      .from('messages')
+      .update({ 
+        content: newContent, 
+        is_edited: true, 
+        edited_at: new Date().toISOString() 
+      })
+      .eq('id', messageId)
+      .eq('sender_id', user.id)
+      .select()
+      .single();
+
+    if (data) {
+      setMessages(prev => prev.map(msg => 
+        msg.id === messageId 
+          ? { ...msg, content: newContent, is_edited: true, edited_at: new Date().toISOString() }
+          : msg
+      ));
+    }
+
+    return data;
+  };
+
+  const deleteMessage = async (messageId: string) => {
+    if (!user) return false;
+    
+    const { error } = await supabase
+      .from('messages')
+      .update({ is_deleted: true, deleted_at: new Date().toISOString() })
+      .eq('id', messageId)
+      .eq('sender_id', user.id);
+
+    if (!error) {
+      setMessages(prev => prev.filter(msg => msg.id !== messageId));
+    }
+
+    return !error;
+  };
+
+  const forwardMessage = async (targetChatId: string, originalMessage: MessageWithSender) => {
+    if (!user) return null;
+    
+    const { data } = await supabase.from('messages').insert({
+      chat_id: targetChatId,
+      sender_id: user.id,
+      content: originalMessage.content,
+      type: originalMessage.type as 'text' | 'photo' | 'video' | 'voice' | 'video_message' | 'file' | 'music' | 'location',
+      media_url: originalMessage.media_url,
+      status: 'sent' as const,
+      forwarded_from_id: originalMessage.id,
     }).select().single();
 
     return data;
@@ -102,5 +183,14 @@ export function useMessages(chatId: string | null) {
     setTimeout(async () => { await supabase.from('typing_indicators').delete().eq('chat_id', chatId).eq('user_id', user.id); }, 3000);
   };
 
-  return { messages, loading, sendMessage, setTyping, refetch: fetchMessages };
+  return { 
+    messages, 
+    loading, 
+    sendMessage, 
+    editMessage,
+    deleteMessage,
+    forwardMessage,
+    setTyping, 
+    refetch: fetchMessages 
+  };
 }
