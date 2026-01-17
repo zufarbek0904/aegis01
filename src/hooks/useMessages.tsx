@@ -25,10 +25,13 @@ export interface MessageWithSender {
   [key: string]: any;
 }
 
-export function useMessages(chatId: string | null) {
+export function useMessages(chatId: string | null | undefined) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<MessageWithSender[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Normalize chatId to null if undefined
+  const normalizedChatId = chatId ?? null;
 
   // Mark messages as delivered when viewing chat
   const markAsDelivered = useCallback(async (messageIds: string[]) => {
@@ -68,12 +71,12 @@ export function useMessages(chatId: string | null) {
   }, [user]);
 
   const fetchMessages = useCallback(async () => {
-    if (!chatId) { setMessages([]); setLoading(false); return; }
+    if (!normalizedChatId) { setMessages([]); setLoading(false); return; }
 
     const { data } = await supabase
       .from('messages')
       .select('*')
-      .eq('chat_id', chatId)
+      .eq('chat_id', normalizedChatId)
       .eq('is_deleted', false)
       .order('created_at', { ascending: true });
 
@@ -110,16 +113,16 @@ export function useMessages(chatId: string | null) {
     if (unreadIds.length > 0) {
       markAsDelivered(unreadIds);
     }
-  }, [chatId, user, markAsDelivered]);
+  }, [normalizedChatId, user, markAsDelivered]);
 
   useEffect(() => { fetchMessages(); }, [fetchMessages]);
 
   // Subscribe to message updates (including status changes)
   useEffect(() => {
-    if (!chatId) return;
+    if (!normalizedChatId) return;
     const channel = supabase
-      .channel(`messages:${chatId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
+      .channel(`messages:${normalizedChatId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${normalizedChatId}` },
         async (payload) => {
           const newMessage = payload.new as any;
           const { data: sender } = await supabase.from('profiles').select('*').eq('id', newMessage.sender_id).single();
@@ -131,7 +134,7 @@ export function useMessages(chatId: string | null) {
           }
         }
       )
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `chat_id=eq.${normalizedChatId}` },
         (payload) => {
           const updatedMessage = payload.new as any;
           setMessages(prev => prev.map(msg => 
@@ -143,7 +146,7 @@ export function useMessages(chatId: string | null) {
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [chatId, user, markAsDelivered]);
+  }, [normalizedChatId, user, markAsDelivered]);
 
   const sendMessage = async (content: string, options?: { 
     type?: string; 
@@ -153,12 +156,12 @@ export function useMessages(chatId: string | null) {
     replyToId?: string;
     forwardedFromId?: string;
   }) => {
-    if (!user || !chatId) return null;
+    if (!user || !normalizedChatId) return null;
 
     if (options?.scheduledFor) {
       const messageType = (options.type || 'text') as 'text' | 'photo' | 'video' | 'voice' | 'video_message' | 'file' | 'music' | 'location';
       const { data } = await supabase.from('scheduled_messages').insert({
-        chat_id: chatId,
+        chat_id: normalizedChatId,
         sender_id: user.id,
         content,
         type: messageType,
@@ -172,7 +175,7 @@ export function useMessages(chatId: string | null) {
     const messageStatus = 'sent' as 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
     
     const { data } = await supabase.from('messages').insert({
-      chat_id: chatId,
+      chat_id: normalizedChatId,
       sender_id: user.id,
       content,
       type: messageType,
@@ -245,9 +248,9 @@ export function useMessages(chatId: string | null) {
   };
 
   const setTyping = async (activityType = 'typing') => {
-    if (!user || !chatId) return;
-    await supabase.from('typing_indicators').upsert({ chat_id: chatId, user_id: user.id, activity_type: activityType });
-    setTimeout(async () => { await supabase.from('typing_indicators').delete().eq('chat_id', chatId).eq('user_id', user.id); }, 3000);
+    if (!user || !normalizedChatId) return;
+    await supabase.from('typing_indicators').upsert({ chat_id: normalizedChatId, user_id: user.id, activity_type: activityType });
+    setTimeout(async () => { await supabase.from('typing_indicators').delete().eq('chat_id', normalizedChatId).eq('user_id', user.id); }, 3000);
   };
 
   return { 

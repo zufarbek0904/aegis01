@@ -34,7 +34,19 @@ const Index = () => {
     }
   }, [permission, requestPermission]);
 
-  const { messages: supabaseMessages, sendMessage, editMessage, deleteMessage, forwardMessage, loading: messagesLoading } = useMessages(activeChatId || undefined);
+  const { messages: supabaseMessages, sendMessage, editMessage, deleteMessage, forwardMessage, markAsRead: markMessagesAsRead, loading: messagesLoading } = useMessages(activeChatId);
+  
+  // Mark messages as read when viewing chat
+  useEffect(() => {
+    if (activeChatId && supabaseMessages.length > 0) {
+      const unreadIds = supabaseMessages
+        .filter(m => m.sender_id !== user?.id && (m.status === 'sent' || m.status === 'delivered'))
+        .map(m => m.id);
+      if (unreadIds.length > 0) {
+        markMessagesAsRead(unreadIds);
+      }
+    }
+  }, [activeChatId, supabaseMessages, user?.id, markMessagesAsRead]);
 
   // Convert Supabase chats to app Chat format
   const chats: Chat[] = supabaseChats.map(chat => {
