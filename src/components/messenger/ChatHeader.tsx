@@ -16,6 +16,7 @@ interface ChatHeaderProps {
   chat: Chat;
   onBack?: () => void;
   isMobile?: boolean;
+  onSearchClick?: () => void;
 }
 
 function getPresenceText(user: User): string {
@@ -35,7 +36,7 @@ function getPresenceText(user: User): string {
   }
 }
 
-export function ChatHeader({ chat, onBack, isMobile = false }: ChatHeaderProps) {
+export function ChatHeader({ chat, onBack, isMobile = false, onSearchClick }: ChatHeaderProps) {
   const mainParticipant = chat.participants[0];
   const isTyping = !!chat.activity;
   const typingUser = chat.isGroup && chat.activity 
@@ -83,7 +84,7 @@ export function ChatHeader({ chat, onBack, isMobile = false }: ChatHeaderProps) 
       </div>
 
       <div className="flex items-center gap-1">
-        <button className="action-button">
+        <button className="action-button" onClick={onSearchClick}>
           <Search className="w-5 h-5" />
         </button>
         <CallButtons chatId={chat.id} />

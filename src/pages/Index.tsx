@@ -5,6 +5,7 @@ import { EmptyState } from '@/components/messenger/EmptyState';
 import { SettingsPanel } from '@/components/messenger/SettingsPanel';
 import { NewChatDialog } from '@/components/messenger/NewChatDialog';
 import { NewGroupDialog } from '@/components/messenger/NewGroupDialog';
+import { AIChatButton } from '@/components/messenger/AIChatButton';
 import { Chat, Message } from '@/types/messenger';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useChats } from '@/hooks/useChats';
@@ -294,6 +295,9 @@ const Index = () => {
           )}
         </AnimatePresence>
       </div>
+
+      {/* AI Chat Button */}
+      <AIChatButton />
     </div>
   );
 };

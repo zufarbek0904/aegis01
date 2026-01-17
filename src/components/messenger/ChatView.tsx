@@ -6,6 +6,9 @@ import { TypingBubble } from './TypingIndicator';
 import { Avatar } from './Avatar';
 import { ForwardMessageDialog } from './ForwardMessageDialog';
 import { EditMessageDialog } from './EditMessageDialog';
+import { MessageSearch } from './MessageSearch';
+import { PinnedMessage } from './PinnedMessage';
+import { VoicePlayer } from './VoicePlayer';
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
@@ -52,6 +55,8 @@ export function ChatView({
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
   const [editMessage, setEditMessage] = useState<Message | null>(null);
+  const [pinnedMessage, setPinnedMessage] = useState<Message | null>(null);
+  const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -66,11 +71,13 @@ export function ChatView({
     }
   }, [chat.activity]);
 
-  // Clear reply when chat changes
+  // Clear state when chat changes
   useEffect(() => {
     setReplyTo(null);
     setForwardMessage(null);
     setEditMessage(null);
+    setPinnedMessage(null);
+    setShowSearch(false);
   }, [chat.id]);
 
   // Group messages by date
@@ -100,8 +107,9 @@ export function ChatView({
   }, [onDeleteMessage]);
 
   const handlePin = useCallback((message: Message) => {
-    toast.info('Сообщение закреплено');
-  }, []);
+    setPinnedMessage(prev => prev?.id === message.id ? null : message);
+    toast.success(pinnedMessage?.id === message.id ? 'Сообщение откреплено' : 'Сообщение закреплено');
+  }, [pinnedMessage]);
 
   const handleEdit = useCallback((message: Message) => {
     if (message.isOutgoing && message.type === 'text') {
@@ -142,7 +150,12 @@ export function ChatView({
 
   return (
     <div className="h-full w-full flex flex-col bg-background overflow-hidden">
-      <ChatHeader chat={chat} onBack={onBack} isMobile={isMobile} />
+      <ChatHeader 
+        chat={chat} 
+        onBack={onBack} 
+        isMobile={isMobile}
+        onSearchClick={() => setShowSearch(prev => !prev)}
+      />
 
       {/* Forward Dialog */}
       <ForwardMessageDialog
@@ -153,13 +166,46 @@ export function ChatView({
         onForward={handleForwardSubmit}
       />
 
-      {/* Edit Dialog */}
       <EditMessageDialog
         open={editMessage !== null}
         onOpenChange={(open) => !open && setEditMessage(null)}
         message={editMessage}
         onSave={handleSaveEdit}
       />
+
+      {/* Search Panel */}
+      <AnimatePresence>
+        {showSearch && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+          >
+            <MessageSearch
+              messages={messages}
+              onScrollToMessage={handleScrollToMessage}
+              onClose={() => setShowSearch(false)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Pinned Message */}
+      <AnimatePresence>
+        {pinnedMessage && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+          >
+            <PinnedMessage
+              message={pinnedMessage}
+              onUnpin={() => setPinnedMessage(null)}
+              onScrollToMessage={() => handleScrollToMessage(pinnedMessage.id)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Messages Area */}
       <div 
