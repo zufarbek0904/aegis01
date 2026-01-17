@@ -11,6 +11,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useChats } from '@/hooks/useChats';
 import { useMessages } from '@/hooks/useMessages';
 import { useAuth } from '@/hooks/useAuth';
+import { useNotifications } from '@/hooks/useNotifications';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Navigate } from 'react-router-dom';
 
@@ -22,6 +23,16 @@ const Index = () => {
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [isNewGroupOpen, setIsNewGroupOpen] = useState(false);
   const isMobile = useIsMobile();
+
+  // Initialize notifications
+  const { requestPermission, permission } = useNotifications();
+
+  // Request notification permission on first load
+  useEffect(() => {
+    if (permission === 'default') {
+      requestPermission();
+    }
+  }, [permission, requestPermission]);
 
   const { messages: supabaseMessages, sendMessage, editMessage, deleteMessage, forwardMessage, loading: messagesLoading } = useMessages(activeChatId || undefined);
 

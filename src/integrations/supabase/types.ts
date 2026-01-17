@@ -660,6 +660,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_group_chat: {
+        Args: {
+          p_description?: string
+          p_is_public?: boolean
+          p_member_ids?: string[]
+          p_name: string
+          p_type?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       get_or_create_private_chat: {
         Args: { p_other_user_id: string; p_user_id: string }
         Returns: string
@@ -674,6 +685,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_chat_admin: {
+        Args: { p_chat_id: string; p_user_id: string }
         Returns: boolean
       }
       update_user_presence: {

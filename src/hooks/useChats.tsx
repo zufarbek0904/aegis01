@@ -85,19 +85,23 @@ export function useChats() {
   const createGroup = async (name: string, memberIds: string[], isChannel = false) => {
     if (!user) return null;
 
-    const { data: chat } = await supabase
-      .from('chats')
-      .insert({ type: isChannel ? 'channel' : 'group', name, created_by: user.id })
-      .select()
-      .single();
+    // Use the secure RPC function that bypasses RLS
+    const { data: chatId, error } = await supabase.rpc('create_group_chat', {
+      p_user_id: user.id,
+      p_name: name,
+      p_type: isChannel ? 'channel' : 'group',
+      p_description: null,
+      p_is_public: false,
+      p_member_ids: memberIds
+    });
 
-    if (!chat) return null;
-
-    await supabase.from('chat_members').insert({ chat_id: chat.id, user_id: user.id, role: 'owner' });
-    await supabase.from('chat_members').insert(memberIds.map(id => ({ chat_id: chat.id, user_id: id, role: 'member' as const })));
+    if (error) {
+      console.error('Error creating group:', error);
+      return null;
+    }
 
     await fetchChats();
-    return chat;
+    return { id: chatId };
   };
 
   const getOrCreatePrivateChat = async (otherUserId: string) => {
