@@ -6,11 +6,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface MessageSearchProps {
   messages: any[];
-  onResultClick: (messageId: string) => void;
+  onScrollToMessage: (messageId: string) => void;
   onClose: () => void;
 }
 
-export function MessageSearch({ messages, onResultClick, onClose }: MessageSearchProps) {
+export function MessageSearch({ messages, onScrollToMessage, onClose }: MessageSearchProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -28,7 +28,7 @@ export function MessageSearch({ messages, onResultClick, onClose }: MessageSearc
     setCurrentIndex(0);
 
     if (searchResults.length > 0) {
-      onResultClick(searchResults[0].id);
+      onScrollToMessage(searchResults[0].id);
     }
   }, [query, messages]);
 
@@ -36,14 +36,14 @@ export function MessageSearch({ messages, onResultClick, onClose }: MessageSearc
     if (results.length === 0) return;
     const newIndex = currentIndex > 0 ? currentIndex - 1 : results.length - 1;
     setCurrentIndex(newIndex);
-    onResultClick(results[newIndex].id);
+    onScrollToMessage(results[newIndex].id);
   };
 
   const goToNext = () => {
     if (results.length === 0) return;
     const newIndex = currentIndex < results.length - 1 ? currentIndex + 1 : 0;
     setCurrentIndex(newIndex);
-    onResultClick(results[newIndex].id);
+    onScrollToMessage(results[newIndex].id);
   };
 
   return (

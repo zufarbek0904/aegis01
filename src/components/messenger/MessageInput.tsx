@@ -19,7 +19,10 @@ import { cn } from '@/lib/utils';
 import { sendStyles } from '@/data/mockData';
 import { MediaUploadDialog } from './MediaUploadDialog';
 import { ReplyPreview } from './ReplyPreview';
+import { VoiceRecorder } from './VoiceRecorder';
 import { Message } from '@/types/messenger';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import {
   Popover,
   PopoverContent,
@@ -49,6 +52,7 @@ export function MessageInput({
 }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
+  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [showAttachments, setShowAttachments] = useState(false);
   const [isOneTime, setIsOneTime] = useState(false);
@@ -129,6 +133,36 @@ export function MessageInput({
       });
     });
     setShowAttachments(false);
+    onCancelReply?.();
+  };
+
+  const handleVoiceSend = async (audioBlob: Blob, duration: number) => {
+    try {
+      // Upload to Supabase storage
+      const fileName = `voice_${Date.now()}.webm`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('chat-media')
+        .upload(`voice/${fileName}`, audioBlob, { contentType: 'audio/webm' });
+      
+      if (uploadError) throw uploadError;
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-media')
+        .getPublicUrl(`voice/${fileName}`);
+      
+      onSendMessage('Голосовое сообщение', {
+        type: 'voice',
+        mediaUrl: publicUrl,
+        replyToId: replyTo?.id
+      });
+      
+      toast.success('Голосовое сообщение отправлено');
+    } catch (error) {
+      console.error('Error uploading voice message:', error);
+      toast.error('Ошибка отправки голосового сообщения');
+    }
+    
+    setShowVoiceRecorder(false);
     onCancelReply?.();
   };
 
@@ -332,20 +366,30 @@ export function MessageInput({
             </Popover>
           ) : (
             <button
-              onMouseDown={() => setIsRecording(true)}
-              onMouseUp={() => setIsRecording(false)}
-              onMouseLeave={() => setIsRecording(false)}
-              onTouchStart={() => setIsRecording(true)}
-              onTouchEnd={() => setIsRecording(false)}
-              className={cn(
-                'action-button-primary flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10',
-                isRecording && 'bg-destructive'
-              )}
+              onClick={() => setShowVoiceRecorder(true)}
+              className="action-button-primary flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10"
             >
               <Mic className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           )}
         </div>
+
+        {/* Voice Recorder */}
+        <AnimatePresence>
+          {showVoiceRecorder && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="mt-2"
+            >
+              <VoiceRecorder
+                onSend={handleVoiceSend}
+                onCancel={() => setShowVoiceRecorder(false)}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </>
   );
