@@ -3,7 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
+import { useAdmin } from '@/hooks/useAdmin';
 import { Avatar } from './Avatar';
+import { LastSeenStatus } from './LastSeenStatus';
+import { SupportDialog } from './SupportDialog';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -27,6 +30,9 @@ import {
   Settings,
   Check,
   Database,
+  Shield,
+  Sparkles,
+  HeadphonesIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -41,11 +47,13 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const navigate = useNavigate();
   const { user, profile, signOut, updateProfile } = useAuth();
   const { language, setLanguage, t, languages } = useLanguage();
+  const { isAdmin, userRole } = useAdmin();
   const [activeSection, setActiveSection] = useState<SettingsSection>('main');
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return document.documentElement.classList.contains('dark');
   });
   const [fontSize, setFontSize] = useState(14);
+  const [showSupportDialog, setShowSupportDialog] = useState(false);
   const [accentColor, setAccentColor] = useState(0);
   
   // Settings state
@@ -159,6 +167,12 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
     { id: 'help', icon: HelpCircle, label: t('settings.help'), color: 'text-pink-400' },
   ];
 
+  const specialItems = [
+    ...(isAdmin ? [{ id: 'admin', icon: Shield, label: 'Админ-панель', color: 'text-red-500', onClick: () => { onClose(); navigate('/admin'); } }] : []),
+    { id: 'ai', icon: Sparkles, label: 'AI Ассистент', color: 'text-purple-500', onClick: () => { onClose(); /* navigate to AI */ } },
+    { id: 'support', icon: HeadphonesIcon, label: 'Поддержка', color: 'text-green-500', onClick: () => setShowSupportDialog(true) },
+  ];
+
   const renderMainMenu = () => (
     <div className="space-y-2">
       {/* User Profile Card */}
@@ -173,11 +187,22 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
             src={profile?.avatar_url}
             size="lg"
             presence={profile?.presence as any}
+            showPresence
           />
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold truncate">{profile?.display_name || t('common.user')}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold truncate">{profile?.display_name || t('common.user')}</h3>
+              {isAdmin && (
+                <span className="px-2 py-0.5 text-[10px] rounded-full bg-red-500/20 text-red-400 font-medium">
+                  {userRole}
+                </span>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground truncate">@{profile?.username || 'username'}</p>
-            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+            <LastSeenStatus 
+              presence={profile?.presence as any} 
+              lastSeen={profile?.last_seen}
+            />
           </div>
           <Button
             variant="ghost"
@@ -188,6 +213,28 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
           </Button>
         </div>
       </motion.div>
+
+      {/* Special items (Admin, AI, Support) */}
+      {specialItems.length > 0 && (
+        <div className="mb-4 space-y-2">
+          {specialItems.map((item, index) => (
+            <motion.button
+              key={item.id}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: index * 0.05 }}
+              onClick={item.onClick}
+              className="w-full flex items-center gap-4 p-3 rounded-xl hover:bg-secondary/50 transition-colors"
+            >
+              <div className={cn('p-2 rounded-lg bg-secondary', item.color)}>
+                <item.icon className="h-5 w-5" />
+              </div>
+              <span className="flex-1 text-left font-medium">{item.label}</span>
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </motion.button>
+          ))}
+        </div>
+      )}
 
       {/* Menu Items */}
       {menuItems.map((item, index) => (
@@ -650,6 +697,12 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
               </AnimatePresence>
             </div>
           </motion.div>
+
+          {/* Support Dialog */}
+          <SupportDialog 
+            isOpen={showSupportDialog} 
+            onClose={() => setShowSupportDialog(false)} 
+          />
         </>
       )}
     </AnimatePresence>
