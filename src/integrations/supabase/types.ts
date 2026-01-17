@@ -691,6 +691,10 @@ export type Database = {
         Args: { p_chat_id: string; p_user_id: string }
         Returns: boolean
       }
+      is_chat_member: {
+        Args: { p_chat_id: string; p_user_id: string }
+        Returns: boolean
+      }
       update_user_presence: {
         Args: {
           p_status: Database["public"]["Enums"]["presence_status"]
