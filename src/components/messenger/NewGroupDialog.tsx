@@ -95,39 +95,20 @@ export function NewGroupDialog({ open, onOpenChange, onGroupCreated }: NewGroupD
     setCreating(true);
 
     try {
-      const { data: chat, error: chatError } = await supabase
-        .from('chats')
-        .insert({
-          type: chatType,
-          name: groupName.trim(),
-          description: description.trim() || null,
-          is_public: isPublic,
-          created_by: user.id
-        })
-        .select()
-        .single();
-
-      if (chatError || !chat) throw chatError;
-
-      await supabase.from('chat_members').insert({
-        chat_id: chat.id,
-        user_id: user.id,
-        role: 'owner'
+      // Use the secure RPC function that bypasses RLS
+      const { data: chatId, error } = await supabase.rpc('create_group_chat', {
+        p_user_id: user.id,
+        p_name: groupName.trim(),
+        p_type: chatType,
+        p_description: description.trim() || null,
+        p_is_public: isPublic,
+        p_member_ids: selectedUsers.map(u => u.id)
       });
 
-      if (selectedUsers.length > 0) {
-        const memberRole = chatType === 'channel' ? 'viewer' as const : 'member' as const;
-        await supabase.from('chat_members').insert(
-          selectedUsers.map(u => ({
-            chat_id: chat.id,
-            user_id: u.id,
-            role: memberRole
-          }))
-        );
-      }
+      if (error) throw error;
 
       toast.success(chatType === 'channel' ? 'Канал создан!' : 'Группа создана!');
-      onGroupCreated(chat.id);
+      onGroupCreated(chatId);
       onOpenChange(false);
     } catch (error) {
       console.error('Error creating chat:', error);
