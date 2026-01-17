@@ -18,14 +18,54 @@ export interface MessageWithSender {
   created_at: string;
   edited_at: string | null;
   forwarded_from_id: string | null;
+  delivered_at?: string | null;
+  read_at?: string | null;
   sender: any;
   replyToMessage?: MessageWithSender | null;
+  [key: string]: any;
 }
 
 export function useMessages(chatId: string | null) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<MessageWithSender[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Mark messages as delivered when viewing chat
+  const markAsDelivered = useCallback(async (messageIds: string[]) => {
+    if (!user || messageIds.length === 0) return;
+    
+    await supabase
+      .from('messages')
+      .update({ 
+        status: 'delivered' as const, 
+        delivered_at: new Date().toISOString() 
+      })
+      .in('id', messageIds)
+      .neq('sender_id', user.id)
+      .eq('status', 'sent');
+  }, [user]);
+
+  // Mark messages as read
+  const markAsRead = useCallback(async (messageIds: string[]) => {
+    if (!user || messageIds.length === 0) return;
+    
+    await supabase
+      .from('messages')
+      .update({ 
+        status: 'read' as const, 
+        read_at: new Date().toISOString() 
+      })
+      .in('id', messageIds)
+      .neq('sender_id', user.id)
+      .in('status', ['sent', 'delivered']);
+      
+    // Also update local state
+    setMessages(prev => prev.map(msg => 
+      messageIds.includes(msg.id) && msg.sender_id !== user.id
+        ? { ...msg, status: 'read', read_at: new Date().toISOString() }
+        : msg
+    ));
+  }, [user]);
 
   const fetchMessages = useCallback(async () => {
     if (!chatId) { setMessages([]); setLoading(false); return; }
@@ -40,29 +80,41 @@ export function useMessages(chatId: string | null) {
     if (!data) { setLoading(false); return; }
 
     const messagesWithSenders = await Promise.all(
-      data.map(async (msg) => {
+      data.map(async (msg: any) => {
         const { data: sender } = await supabase.from('profiles').select('*').eq('id', msg.sender_id).single();
         
-        // Fetch reply message if exists
-        let replyToMessage = null;
+        let replyToMessage: MessageWithSender | null = null;
         if (msg.reply_to_id) {
           const { data: replyMsg } = await supabase.from('messages').select('*').eq('id', msg.reply_to_id).single();
           if (replyMsg) {
-            const { data: replySender } = await supabase.from('profiles').select('*').eq('id', replyMsg.sender_id).single();
-            replyToMessage = { ...replyMsg, sender: replySender };
+            const { data: replySender } = await supabase.from('profiles').select('*').eq('id', (replyMsg as any).sender_id).single();
+            replyToMessage = { ...(replyMsg as any), sender: replySender } as MessageWithSender;
           }
         }
         
-        return { ...msg, sender, replyToMessage };
+        return { 
+          ...msg, 
+          sender, 
+          replyToMessage,
+        } as MessageWithSender;
       })
     );
 
-    setMessages(messagesWithSenders);
+    setMessages(messagesWithSenders as MessageWithSender[]);
     setLoading(false);
-  }, [chatId]);
+    
+    // Mark unread messages as delivered
+    const unreadIds = messagesWithSenders
+      .filter(m => m.sender_id !== user?.id && m.status === 'sent')
+      .map(m => m.id);
+    if (unreadIds.length > 0) {
+      markAsDelivered(unreadIds);
+    }
+  }, [chatId, user, markAsDelivered]);
 
   useEffect(() => { fetchMessages(); }, [fetchMessages]);
 
+  // Subscribe to message updates (including status changes)
   useEffect(() => {
     if (!chatId) return;
     const channel = supabase
@@ -72,11 +124,26 @@ export function useMessages(chatId: string | null) {
           const newMessage = payload.new as any;
           const { data: sender } = await supabase.from('profiles').select('*').eq('id', newMessage.sender_id).single();
           setMessages(prev => [...prev, { ...newMessage, sender }]);
+          
+          // Mark as delivered if from other user
+          if (newMessage.sender_id !== user?.id) {
+            markAsDelivered([newMessage.id]);
+          }
+        }
+      )
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
+        (payload) => {
+          const updatedMessage = payload.new as any;
+          setMessages(prev => prev.map(msg => 
+            msg.id === updatedMessage.id 
+              ? { ...msg, ...updatedMessage }
+              : msg
+          ));
         }
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [chatId]);
+  }, [chatId, user, markAsDelivered]);
 
   const sendMessage = async (content: string, options?: { 
     type?: string; 
@@ -190,7 +257,9 @@ export function useMessages(chatId: string | null) {
     editMessage,
     deleteMessage,
     forwardMessage,
-    setTyping, 
+    setTyping,
+    markAsRead,
+    markAsDelivered,
     refetch: fetchMessages 
   };
 }

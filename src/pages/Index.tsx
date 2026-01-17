@@ -145,6 +145,8 @@ const Index = () => {
         created_at: message.timestamp.toISOString(),
         edited_at: null,
         forwarded_from_id: null,
+        delivered_at: null,
+        read_at: null,
         sender: null,
       });
     }
